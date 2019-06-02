@@ -1,3 +1,5 @@
+/* Return the difference between two timestamps.  */
+
 /*
 ** This file is in the public domain, so clarified as of
 ** 1996-06-05 by Arthur David Olson.
@@ -14,7 +16,7 @@ dminus(double x)
   return -x;
 }
 
-double ATTRIBUTE_CONST
+double
 difftime(time_t time1, time_t time0)
 {
 	/*

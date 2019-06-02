@@ -1,6 +1,6 @@
 .TH ZIC 8
 .SH NAME
-zic \- time zone compiler
+zic \- timezone compiler
 .SH SYNOPSIS
 .B zic
 [
@@ -26,47 +26,82 @@ zic \- time zone compiler
 .\}
 .el \{\
 .  ds :
-.  el ds - \-
+.  ds - \-
 .\}
-.I Zic
-reads text from the file(s) named on the command line
+The
+.B zic
+program reads text from the file(s) named on the command line
 and creates the time conversion information files specified in this input.
 If a
 .I filename
 is
 .q "\*-" ,
-the standard input is read.
-.PP
-These options are available:
+standard input is read.
+.SH OPTIONS
 .TP
-.BI "\*-\*-version"
+.B "\*-\*-version"
 Output version information and exit.
+.TP
+.B \*-\*-help
+Output short usage message and exit.
 .TP
 .BI "\*-d " directory
 Create time conversion information files in the named directory rather than
 in the standard directory named below.
 .TP
 .BI "\*-l " timezone
-Use the given time zone as local time.
-.I Zic
+Use
+.I timezone
+as local time.
+.B zic
 will act as if the input contained a link line of the form
 .sp
 .ti +.5i
 Link	\fItimezone\fP		localtime
 .TP
 .BI "\*-p " timezone
-Use the given time zone's rules when handling POSIX-format
-time zone environment variables.
-.I Zic
+Use
+.IR timezone 's
+rules when handling POSIX-format
+TZ strings like "CST6CDT" that lack transition rules.
+.B zic
 will act as if the input contained a link line of the form
 .sp
 .ti +.5i
 Link	\fItimezone\fP		posixrules
 .TP
+.BI "\*-t " file
+When creating local time information, put the configuration link in
+the named file rather than in the standard location.
+.TP
 .BI "\*-L " leapsecondfilename
 Read leap second information from the file with the given name.
 If this option is not used,
 no leap second information appears in output files.
+.TP
+.BR "\*-r " "[\fB@\fP\fIlo\fP][\fB/@\fP\fIhi\fP]"
+Reduce the size of output files by limiting their applicability
+to timestamps in the range from
+.I lo
+(inclusive) to
+.I hi
+(exclusive), where
+.I lo
+and
+.I hi
+are possibly-signed decimal counts of seconds since the Epoch
+(1970-01-01 00:00:00 UTC).
+Omitted counts default to extreme values.
+For example,
+.q "zic \*-r @0"
+omits data intended for negative timestamps (i.e., before the Epoch), and
+.q "zic \*-r @0/@2147483648"
+outputs data intended only for nonnegative timestamps that fit into
+31-bit signed integers.
+On platforms with GNU
+.BR date ,
+.q "zic \-r @$(date +%s)"
+omits data intended for past timestamps.
 .TP
 .B \*-v
 Be more verbose, and complain about the following situations:
@@ -75,35 +110,70 @@ Be more verbose, and complain about the following situations:
 The input specifies a link to a link.
 .PP
 A year that appears in a data file is outside the range
-of years representable by
-.IR time (2)
-values.
+of representable years.
 .PP
 A time of 24:00 or more appears in the input.
 Pre-1998 versions of
-.I zic
+.B zic
 prohibit 24:00, and pre-2007 versions prohibit times greater than 24:00.
 .PP
 A rule goes past the start or end of the month.
 Pre-2004 versions of
-.I zic
+.B zic
 prohibit this.
 .PP
+A time zone abbreviation uses a
+.B %z
+format.
+Pre-2015 versions of
+.B zic
+do not support this.
+.PP
+A timestamp contains fractional seconds.
+Pre-2018 versions of
+.B zic
+do not support this.
+.PP
+The input contains abbreviations that are mishandled by pre-2018 versions of
+.B zic
+due to a longstanding coding bug.
+These abbreviations include
+.q L
+for
+.q Link ,
+.q mi
+for
+.q min ,
+.q Sa
+for
+.q Sat ,
+and
+.q Su
+for
+.q Sun .
+.PP
 The output file does not contain all the information about the
-long-term future of a zone, because the future cannot be summarized as
-an extended POSIX TZ string.  For example, as of 2013 this problem
+long-term future of a timezone, because the future cannot be summarized as
+an extended POSIX TZ string.  For example, as of 2019 this problem
 occurs for Iran's daylight-saving rules for the predicted future, as
 these rules are based on the Iranian calendar, which cannot be
 represented.
 .PP
 The output contains data that may not be handled properly by client
 code designed for older
-.I zic
-output formats.  These compatibility issues affect only time stamps
+.B zic
+output formats.  These compatibility issues affect only timestamps
 before 1970 or after the start of 2038.
 .PP
-A time zone abbreviation has fewer than 3 characters.
-POSIX requires at least 3.
+The output file contains more than 1200 transitions,
+which may be mishandled by some clients.
+The current reference client supports at most 2000 transitions;
+pre-2014 versions of the reference client support at most 1200
+transitions.
+.PP
+A time zone abbreviation has fewer than 3 or more than 6 characters.
+POSIX requires at least 3, and requires implementations to support
+at least 6.
 .PP
 An output file name contains a byte that is not an ASCII letter,
 .q "\*-" ,
@@ -114,11 +184,10 @@ or it contains a file name component that contains more than 14 bytes
 or that starts with
 .q "\*-" .
 .RE
-.TP
-.B \*-s
-Limit time values stored in output files to values that are the same
-whether they're taken to be signed or unsigned.
-You can use this option to generate SVVS-compatible files.
+.SH FILES
+Input files use the format described in this section; output files use
+.IR tzfile (5)
+format.
 .PP
 Input files should be text files, that is, they should be a series of
 zero or more lines, each ending in a newline byte and containing at
@@ -144,39 +213,56 @@ to the end of the line the sharp character appears on.
 White space characters and sharp characters may be enclosed in double quotes
 (") if they're to be used as part of a field.
 Any line that is blank (after comment stripping) is ignored.
-Non-blank lines are expected to be of one of three types:
+Nonblank lines are expected to be of one of three types:
 rule lines, zone lines, and link lines.
 .PP
-Names (such as month names) must be in English and are case insensitive.
-Abbreviations, if used, must be unambiguous in context.
+Names must be in English and are case insensitive.
+They appear in several contexts, and include month and weekday names
+and keywords such as
+.BR "maximum" ,
+.BR "only" ,
+.BR "Rolling" ,
+and
+.BR "Zone" .
+A name can be abbreviated by omitting all but an initial prefix; any
+abbreviation must be unambiguous in context.
 .PP
 A rule line has the form
 .nf
 .ti +.5i
-.ta \w'Rule\0\0'u +\w'NAME\0\0'u +\w'FROM\0\0'u +\w'1973\0\0'u +\w'TYPE\0\0'u +\w'Apr\0\0'u +\w'lastSun\0\0'u +\w'2:00\0\0'u +\w'SAVE\0\0'u
+.ta \w'Rule\0\0'u +\w'NAME\0\0'u +\w'FROM\0\0'u +\w'1973\0\0'u +\w'TYPE\0\0'u +\w'Apr\0\0'u +\w'lastSun\0\0'u +\w'2:00w\0\0'u +\w'1:00d\0\0'u
 .sp
 Rule	NAME	FROM	TO	TYPE	IN	ON	AT	SAVE	LETTER/S
 .sp
 For example:
 .ti +.5i
 .sp
-Rule	US	1967	1973	\*-	Apr	lastSun	2:00	1:00	D
+Rule	US	1967	1973	\*-	Apr	lastSun	2:00w	1:00d	D
 .sp
 .fi
 The fields that make up a rule line are:
 .TP "\w'LETTER/S'u"
 .B NAME
-Gives the (arbitrary) name of the set of rules this rule is part of.
+Gives the name of the rule set that contains this line.
+The name must start with a character that is neither
+an ASCII digit nor
+.q \*-
+nor
+.q + .
+To allow for future extensions,
+an unquoted name should not contain characters from the set
+.q !$%&'()*,/:;<=>?@[\e]^`{|}~ .
 .TP
 .B FROM
 Gives the first year in which the rule applies.
-Any integer year can be supplied; the proleptic Gregorian calendar is assumed.
+Any signed integer year can be supplied; the proleptic Gregorian calendar
+is assumed, with year 0 preceding year 1.
 The word
 .B minimum
-(or an abbreviation) means the minimum year representable as an integer.
+(or an abbreviation) means the indefinite past.
 The word
 .B maximum
-(or an abbreviation) means the maximum year representable as an integer.
+(or an abbreviation) means the indefinite future.
 Rules can describe times that are not representable as time values,
 with the unrepresentable times ignored; this allows rules to be portable
 among hosts with differing time value types.
@@ -199,7 +285,7 @@ field.
 should be
 .q \*-
 and is present for compatibility with older versions of
-.I zic
+.B zic
 in which it could contain year types.
 .TP
 .B IN
@@ -221,28 +307,53 @@ Sun<=25	last Sunday on or before the 25th
 .fi
 .in -.5i
 .sp
-Names of days of the week may be abbreviated or spelled out in full.
-Note that there must be no spaces within the
+A weekday name (e.g.,
+.BR "Sunday" )
+or a weekday name preceded by
+.q "last"
+(e.g.,
+.BR "lastSunday" )
+may be abbreviated or spelled out in full.
+There must be no white space characters within the
 .B ON
 field.
+The
+.q <=
+and
+.q >=
+constructs can result in a day in the neighboring month;
+for example, the IN-ON combination
+.q "Oct Sun>=31"
+stands for the first Sunday on or after October 31,
+even if that Sunday occurs in November.
 .TP
 .B AT
-Gives the time of day at which the rule takes effect.
+Gives the time of day at which the rule takes effect,
+relative to 00:00, the start of a calendar day.
 Recognized forms include:
 .nf
 .in +.5i
 .sp
-.ta \w'1:28:13\0\0'u
+.ta \w'00:19:32.13\0\0'u
 2	time in hours
 2:00	time in hours and minutes
-15:00	24-hour format time (for times after noon)
-1:28:14	time in hours, minutes, and seconds
+01:28:14	time in hours, minutes, and seconds
+00:19:32.13	time with fractional seconds
+12:00	midday, 12 hours after 00:00
+15:00	3 PM, 15 hours after 00:00
+24:00	end of day, 24 hours after 00:00
+260:00	260 hours after 00:00
+\*-2:30	2.5 hours before 00:00
 \*-	equivalent to 0
 .fi
 .in -.5i
 .sp
-where hour 0 is midnight at the start of the day,
-and hour 24 is midnight at the end of the day.
+Although
+.B zic
+rounds times to the nearest integer second
+(breaking ties to the even integer), the fractions may be useful
+to other applications requiring greater precision.
+The source format does not specify any maximum precision.
 Any of these forms may be followed by the letter
 .B w
 if the given time is local
@@ -260,6 +371,10 @@ or
 if the given time is universal time;
 in the absence of an indicator,
 wall clock time is assumed.
+These forms ignore leap seconds; for example,
+if a leap second occurs at 00:59:60 local time,
+.q "1:00"
+stands for 3601 seconds after local midnight instead of the usual 3600 seconds.
 The intent is that a rule line describes the instants when a
 clock/calendar set to the type of time specified in the
 .B AT
@@ -267,17 +382,25 @@ field would show the specified date and time of day.
 .TP
 .B SAVE
 Gives the amount of time to be added to local standard time when the rule is in
-effect.
+effect, and whether the resulting time is standard or daylight saving.
 This field has the same format as the
 .B AT
 field
-(although, of course, the
-.B w
-and
+except with a different set of suffix letters:
 .B s
-suffixes are not used).
-Only the sum of standard time and this amount matters; for example,
-.I zic
+for standard time and
+.B d
+for daylight saving time.
+The suffix letter is typically omitted, and defaults to
+.B s
+if the offset is zero and to
+.B d
+otherwise.
+Negative offsets are allowed; in Ireland, for example, daylight saving
+time is observed in winter and has a negative offset relative to
+Irish Standard Time.
+The offset is merely added to standard time; for example,
+.B zic
 does not distinguish a 10:30 standard time plus an 0:30
 .B SAVE
 from a 10:00 standard time plus a 1:00
@@ -303,21 +426,21 @@ A zone line has the form
 .sp
 .nf
 .ti +.5i
-.ta \w'Zone\0\0'u +\w'Australia/Adelaide\0\0'u +\w'GMTOFF\0\0'u +\w'RULES/SAVE\0\0'u +\w'FORMAT\0\0'u
-Zone	NAME	GMTOFF	RULES/SAVE	FORMAT	[UNTILYEAR [MONTH [DAY [TIME]]]]
+.ta \w'Zone\0\0'u +\w'Asia/Amman\0\0'u +\w'UTOFF\0\0'u +\w'Jordan\0\0'u +\w'FORMAT\0\0'u
+Zone	NAME	UTOFF	RULES	FORMAT	[UNTIL]
 .sp
 For example:
 .sp
 .ti +.5i
-Zone	Australia/Adelaide	9:30	Aus	AC%sT	1971 Oct 31  2:00
+Zone	Asia/Amman	2:00	Jordan	EE%sT	2017 Oct 27 01:00
 .sp
 .fi
 The fields that make up a zone line are:
-.TP "\w'GMTOFF'u"
+.TP "\w'UTOFF'u"
 .B NAME
-The name of the time zone.
+The name of the timezone.
 This is the name used in creating the time conversion information file for the
-zone.
+timezone.
 It should not contain a file name component
 .q ".\&"
 or
@@ -325,8 +448,8 @@ or
 a file name component is a maximal substring that does not contain
 .q "/" .
 .TP
-.B GMTOFF
-The amount of time to add to UT to get standard time in this zone.
+.B UTOFF
+The amount of time to add to UT to get standard time.
 This field has the same format as the
 .B AT
 and
@@ -334,25 +457,27 @@ and
 fields of rule lines;
 begin the field with a minus sign if time must be subtracted from UT.
 .TP
-.B RULES/SAVE
-The name of the rule(s) that apply in the time zone or,
-alternately, an amount of time to add to local standard time.
+.B RULES
+The name of the rules that apply in the timezone or,
+alternatively, a field in the same format as a rule-line SAVE column,
+giving of the amount of time to be added to local standard time
+effect, and whether the resulting time is standard or daylight saving.
 If this field is
 .B \*-
-then standard time always applies in the time zone.
+then standard time always applies.
 When an amount of time is given, only the sum of standard time and
 this amount matters.
 .TP
 .B FORMAT
-The format for time zone abbreviations in this time zone.
+The format for time zone abbreviations.
 The pair of characters
 .B %s
 is used to show where the
 .q "variable part"
 of the time zone abbreviation goes.
-Alternately, a format can use the pair of characters
+Alternatively, a format can use the pair of characters
 .B %z
-to stand for the UTC offset in the form
+to stand for the UT offset in the form
 .RI \(+- hh ,
 .RI \(+- hhmm ,
 or
@@ -362,16 +487,19 @@ using the shortest form that does not lose information, where
 .IR mm ,
 and
 .I ss
-are the hours, minutes, and seconds east (+) or west (\(mi) of UTC.
-Alternately,
+are the hours, minutes, and seconds east (+) or west (\(mi) of UT.
+Alternatively,
 a slash (/)
 separates standard and daylight abbreviations.
 To conform to POSIX, a time zone abbreviation should contain only
-alphanumeric ASCII characters, "+" and "\*-".
+alphanumeric ASCII characters,
+.q "+"
+and
+.q "\*-".
 .TP
-.B UNTILYEAR [MONTH [DAY [TIME]]]
+.B UNTIL
 The time at which the UT offset or the rule(s) change for a location.
-It is specified as a year, a month, a day, and a time of day.
+It takes the form of one to four fields YEAR [MONTH [DAY [TIME]]].
 If this is specified,
 the time zone information is generated from the given UT offset
 and rule change until the time specified, which is interpreted using
@@ -396,6 +524,16 @@ continuation.
 .PP
 If a zone changes at the same instant that a rule would otherwise take
 effect in the earlier zone or continuation line, the rule is ignored.
+A zone or continuation line
+.I L
+with a named rule set starts with standard time by default:
+that is, any of
+.IR L 's
+timestamps preceding
+.IR L 's
+earliest rule use the rule in effect after
+.IR L 's
+first transition into standard time.
 In a single zone it is an error if two rules take effect at the same
 instant, or if two zone changes take effect at the same instant.
 .PP
@@ -419,7 +557,7 @@ field should appear as the
 field in some zone line.
 The
 .B LINK-NAME
-field is used as an alternate name for that zone;
+field is used as an alternative name for that zone;
 it has the same syntax as a zone line's
 .B NAME
 field.
@@ -440,7 +578,7 @@ Leap	YEAR	MONTH	DAY	HH:MM:SS	CORR	R/S
 For example:
 .ti +.5i
 .sp
-Leap	1974	Dec	31	23:59:60	+	S
+Leap	2016	Dec	31	23:59:60	+	S
 .sp
 .fi
 The
@@ -459,17 +597,6 @@ if a second was added
 or
 .q "\*-"
 if a second was skipped.
-.\" There's no need to document the following, since it's impossible for more
-.\" than one leap second to be inserted or deleted at a time.
-.\" The C Standard is in error in suggesting the possibility.
-.\" See Terry J Quinn, The BIPM and the accurate measure of time,
-.\" Proc IEEE 79, 7 (July 1991), 894-905.
-.\"	or
-.\"	.q ++
-.\"	if two seconds were added
-.\"	or
-.\"	.q --
-.\"	if two seconds were skipped.
 The
 .B R/S
 field
@@ -483,8 +610,10 @@ if the leap second time given by the other fields should be interpreted as
 local wall clock time.
 .SH "EXTENDED EXAMPLE"
 Here is an extended example of
-.I zic
+.B zic
 input, intended to illustrate many of its features.
+In this example, the EU rules are for the European Union
+and for its predecessor organization, the European Communities.
 .br
 .ne 22
 .nf
@@ -502,25 +631,27 @@ Rule	EU	1979	1995	\*-	Sep	lastSun	1:00u	0	\*-
 Rule	EU	1981	max	\*-	Mar	lastSun	1:00u	1:00	S
 Rule	EU	1996	max	\*-	Oct	lastSun	1:00u	0	\*-
 .sp
-.ta \w'# Zone\0\0'u +\w'Europe/Zurich\0\0'u +\w'GMTOFF\0\0'u +\w'RULES/SAVE\0\0'u +\w'FORMAT\0\0'u
-# Zone	NAME	GMTOFF	RULES/SAVE	FORMAT	UNTIL
+.ta \w'# Zone\0\0'u +\w'Europe/Zurich\0\0'u +\w'0:29:45.50\0\0'u +\w'RULES\0\0'u +\w'FORMAT\0\0'u
+# Zone	NAME	UTOFF	RULES	FORMAT	[UNTIL]
 Zone	Europe/Zurich	0:34:08	\*-	LMT	1853 Jul 16
-		0:29:46	\*-	BMT	1894 Jun
+		0:29:45.50	\*-	BMT	1894 Jun
 		1:00	Swiss	CE%sT	1981
 		1:00	EU	CE%sT
 .sp
-Link	Europe/Zurich	Switzerland
+Link	Europe/Zurich	Europe/Vaduz
 .sp
 .in
 .fi
-In this example, the zone is named Europe/Zurich but it has an alias
-as Switzerland.  This example says that Zurich was 34 minutes and 8
-seconds west of UT until 1853-07-16 at 00:00, when the legal offset
-was changed to 7\(de\|26\(fm\|22.50\(sd; although this works out to
-0:29:45.50, the input format cannot represent fractional seconds so it
-is rounded here.  After 1894-06-01 at 00:00 Swiss daylight saving rules
-(defined with lines beginning with "Rule Swiss") apply, and the UT offset
-became one hour.  From 1981 to the present, EU daylight saving rules have
+In this example, the timezone is named Europe/Zurich but it has an alias
+as Europe/Vaduz.  This example says that Zurich was 34 minutes and 8
+seconds east of UT until 1853-07-16 at 00:00, when the legal offset
+was changed to 7\(de\|26\(fm\|22.50\(sd, which works out to 0:29:45.50;
+.B zic
+treats this by rounding it to 0:29:46.
+After 1894-06-01 at 00:00 the UT offset became one hour
+and Swiss daylight saving rules (defined with lines beginning with
+.q "Rule Swiss")
+apply.  From 1981 to the present, EU daylight saving rules have
 applied, and the UTC offset has remained at one hour.
 .PP
 In 1941 and 1942, daylight saving time applied from the first Monday
@@ -531,11 +662,21 @@ saving has begun on the last Sunday in March at 01:00 UTC.
 Until 1995 it ended the last Sunday in September at 01:00 UTC,
 but this changed to the last Sunday in October starting in 1996.
 .PP
-For purposes of
-display, "LMT" and "BMT" were initially used, respectively.  Since
-Swiss rules and later EU rules were applied, the display name for the
-time zone has been CET for standard time and CEST for daylight saving
+For purposes of display,
+.q "LMT"
+and
+.q "BMT"
+were initially used, respectively.  Since
+Swiss rules and later EU rules were applied, the time zone abbreviation
+has been CET for standard time and CEST for daylight saving
 time.
+.SH FILES
+.TP
+.I /etc/localtime
+Default local timezone file.
+.TP
+.I /usr/share/zoneinfo
+Default timezone information directory.
 .SH NOTES
 For areas with more than two types of local time,
 you may need to use local standard time in the
@@ -544,25 +685,18 @@ field of the earliest transition time's rule to ensure that
 the earliest transition time recorded in the compiled file is correct.
 .PP
 If,
-for a particular zone,
+for a particular timezone,
 a clock advance caused by the start of daylight saving
 coincides with and is equal to
 a clock retreat caused by a change in UT offset,
-.IR zic
+.B zic
 produces a single transition to daylight saving at the new UT offset
 (without any change in wall clock time).
 To get separate transitions
 use multiple zone continuation lines
 specifying transition instants using universal time.
-.PP
-Time stamps well before the Big Bang are silently omitted from the output.
-This works around bugs in software that mishandles large negative time
-stamps.  Call it sour grapes, but pre-Big-Bang time stamps are
-physically suspect anyway.  The pre-Big-Bang cutoff time is
-approximate and may change in future versions.
-.SH FILE
-/usr/local/etc/zoneinfo	standard directory used for created files
-.SH "SEE ALSO"
-newctime(3), tzfile(5), zdump(8)
+.SH SEE ALSO
+.BR tzfile (5),
+.BR zdump (8)
 .\" This file is in the public domain, so clarified as of
 .\" 2009-05-17 by Arthur David Olson.
